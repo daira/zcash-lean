@@ -1,7 +1,7 @@
-name = "e"
+name = "zcash"
 version = "0.1.0"
-keywords = ["math"]
-defaultTargets = ["E"]
+keywords = ["cryptography", "math", "protocols"]
+defaultTargets = ["Zcash"]
 
 [leanOptions]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
@@ -12,4 +12,4 @@ name = "mathlib"
 scope = "leanprover-community"
 
 [[lean_lib]]
-name = "E"
+name = "Zcash"
