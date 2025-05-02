@@ -1,12 +1,22 @@
 import Mathlib.Algebra.Group.Defs
+import Mathlib.Algebra.Field.Defs
 import Mathlib.AlgebraicGeometry.EllipticCurve.Weierstrass
 import Mathlib.AlgebraicGeometry.EllipticCurve.Affine
 import Mathlib.Tactic
 import Zcash.Tactic
 
--- Complete Twisted Edwards elliptic curves as defined in Hüseyin Hışıl's thesis:
--- Elliptic Curves, Group Law, and Efficient Computation
--- <https://eprints.qut.edu.au/33233/1/H%C3%BCseyin_Hi%C5%9Fil_Thesis.pdf>
+/-
+Complete Twisted Edwards elliptic curves as defined in Hüseyin Hışıl's thesis:
+Elliptic Curves, Group Law, and Efficient Computation
+<https://eprints.qut.edu.au/33233/1/H%C3%BCseyin_Hi%C5%9Fil_Thesis.pdf>
+-/
+
+--set_option maxHeartbeats 500000
+/-
+tactics to avoid:
+* tauto
+* simp_all without 'only [...]'
+-/
 
 variable (F : Type) [field_F : Field F]
 
@@ -21,6 +31,8 @@ structure CtEdwardsCurve where
   F_nonbinary : (2 : F) ≠ 0
 deriving Repr
 
+local notation "E.√ā" => $(Lean.mkIdent `E.sqrt_a)
+
 def ctedwards_on_curve (a d u v : F) : Prop :=
   a * u^2 + v^2 = 1 + d * u^2 * v^2
 
@@ -34,7 +46,7 @@ lemma only_nz_squared_is_nz (a : F) (a_sq_nz : a^2 ≠ 0) : a ≠ 0 := by
   rw [sq, mul_ne_zero_iff] at a_sq_nz
   simp_all only [ne_eq, not_false_eq_true]
 
-lemma ctedwards_sqrt_a_nz (E : CtEdwardsCurve F) : E.sqrt_a ≠ 0 := by
+lemma ctedwards_sqrt_a_nz (E : CtEdwardsCurve F) : E.√ā ≠ 0 := by
   let a_nz := E.a_nonzero
   rw [← E.a_square] at a_nz
   exactly only_nz_squared_is_nz at a_nz
@@ -80,13 +92,9 @@ lemma add_field_eqns (a b c d : F) (fst : a = b) (snd : c = d) : a + c = b + d :
   rw [← snd]
   exact h
 
---set_option maxHeartbeats 500000
---tactics to avoid:
---  tauto
---  simp_all without 'only [...]'
-
 lemma ctedwards_complete (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E)
     : (E.d*(P₂.u*(P₂.v*(P₁.u*P₁.v))))^2 ≠ 1 := by
+
   let u₁ := P₁.u; let v₁ := P₁.v; let u₂ := P₂.u; let v₂ := P₂.v
   let ε := E.d*(u₂*(v₂*(u₁*v₁)))
   let curve₁ : ctedwards_on_curve F E.a E.d u₁ v₁ := P₁.on_curve
@@ -104,73 +112,70 @@ lemma ctedwards_complete (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E)
                                 = 1 + d*u₁^2*v₁^2                        [ε ∈ {-1, 1}]
                                 = a*u₁^2 + v₁^2                          [curve eq₁] (h1)
   so
-    ((√a)*u₁ + ε*v₁)^2 = a*u₁^2 + v₁^2 ± 2*(√a)*ε*u₁*v₁                  (h2) ---------------.
-                       = d*u₁^2*v₁^2*(a*u₂^2 + v₂^2) ± 2*(√a)*ε*u₁*v₁    [subst h1]          | (h3)
-                       = d*u₁^2*v₁^2*(a*u₂^2 + v₂^2 ± 2*(√a)*u₂*v₂)      [expand, defn ε]    v
-                       = d*u₁^2*v₁^2*((√a)*u₂ ± v₂)^2                    [rewrite square]  (h4)
+    (√ā*u₁ + ε*v₁)^2 = a*u₁^2 + v₁^2 ± 2*√ā*ε*u₁*v₁
+                     = d*u₁^2*v₁^2*(a*u₂^2 + v₂^2) ± 2*√ā*ε*u₁*v₁        [subst h1]
+                     = d*u₁^2*v₁^2*(a*u₂^2 + v₂^2 ± 2*√ā*u₂*v₂)          [expand, defn ε]
+                     = d*u₁^2*v₁^2*(√ā*u₂ ± v₂)^2                        [rewrite square] (h2)
 
-  If (√a)*u₂ ± v₂ ≠ 0 then d = ((√a)*u₁ ± ε*v₁)/(u₁*v₁*((√a)*u₂ ± v₂))^2 so d is a square, contradiction.
-  If both (√a)*u₂ + v₂ and (√a)*u₂ - v₂ are 0 then u₂ = 0 and v₂ = 0, contradiction.
+  If √ā*u₂ ± v₂ ≠ 0 then d = (√ā*u₁ ± ε*v₁)/(u₁*v₁*(√ā*u₂ ± v₂))^2 so d is a square, contradiction.
+  If both √ā*u₂ + v₂ and √ā*u₂ - v₂ are 0 then u₂ = 0 and v₂ = 0, contradiction.
   -/
 
   have ε_sq_n1 : ε^2 ≠ 1 := by
     by_contra ε_sq_1
-    have ε_sq_nz  : ε^2 ≠ 0 := by simp_all only [zero_ne_one]; field_simp
-    have ε_nz     : ε ≠ 0 := by exactly only_nz_squared_is_nz at ε_sq_nz
+    have ε_sq_nz : ε^2 ≠ 0 := by simp_all only [zero_ne_one]; field_simp
+    have ε_nz : ε ≠ 0 := by exactly only_nz_squared_is_nz at ε_sq_nz
     repeat (rw [mul_ne_zero_iff] at ε_nz)
-    have h1       : E.d*((u₁*v₁)^2*(E.a*u₂^2 + v₂^2)) = E.a*u₁^2 + v₁^2 := by
+
+    have h1 : E.d*((u₁*v₁)^2*(E.a*u₂^2 + v₂^2)) = E.a*u₁^2 + v₁^2 := by
       rw [curve₁, ← ε_sq_1]; unfold ε; rw [curve₂]; ring
 
-    have signed_arg (sign : F) (sign_sq_1 : sign^2 = 1) : E.sqrt_a*u₂ + sign*v₂ = 0 := by
+    have signed_arg (sign : F) (sign_sq_1 : sign^2 = 1) : E.√ā*u₂ + sign*v₂ = 0 := by
       -- ε changes sign with v₂
       let pm_v₂ := sign*v₂; let pm_ε := sign*ε
 
-      have h2       : (E.sqrt_a*u₁ + pm_ε*v₁)^2 = E.a*u₁^2 + v₁^2 + 2*E.sqrt_a*pm_ε*(u₁*v₁) := by
-        unfold pm_ε; ring_nf
-        rw [ε_sq_1, sign_sq_1, E.a_square]; ring
-      have h3       : E.a*u₁^2 + v₁^2 + 2*E.sqrt_a*pm_ε*(u₁*v₁) = E.d*((u₁*v₁)^2*(E.sqrt_a*u₂ + pm_v₂)^2) := by
-        rw [← h1]
-        unfold pm_ε; unfold ε; unfold pm_v₂; ring_nf
-        rw [sign_sq_1, E.a_square]; ring
-      have h4       : (E.sqrt_a*u₁ + pm_ε*v₁)^2 = E.d*((u₁*v₁)^2*(E.sqrt_a*u₂ + pm_v₂)^2) := by
-        rw [h2, h3]
-      have d_calc   : ((u₁*v₁)*(E.sqrt_a*u₂ + pm_v₂))^2 = 0 ∨
-                        E.d = (E.sqrt_a*u₁ + pm_ε*v₁)^2 / ((u₁*v₁)*(E.sqrt_a*u₂ + pm_v₂))^2 := by
-        rw [mul_pow_comm_conv] at h4
-        exactly div_nz at h4
-      have d_contra : E.d ≠ (E.sqrt_a*u₁ + pm_ε*v₁)^2 / ((u₁*v₁)*(E.sqrt_a*u₂ + pm_v₂))^2 := by
-        by_contra d_square
-        have d_sq     : E.d = ((E.sqrt_a*u₁ + pm_ε*v₁) / ((u₁*v₁)*(E.sqrt_a*u₂ + pm_v₂)))^2 := by
-          rw [← div_pow_comm] at d_square; exact d_square
-        apply E.d_nonsquare
-        exactly detect_square at d_sq
-      simp_all only [d_calc]; simp at d_calc
-      simp_all only [false_or, pm_v₂]
+      have h2 : (E.√ā*u₁ + pm_ε*v₁)^2 = E.d*((u₁*v₁)^2*(E.√ā*u₂ + pm_v₂)^2) := by calc
+        (E.√ā*u₁ + pm_ε*v₁)^2 = E.a*u₁^2 + v₁^2 + 2*E.√ā*pm_ε*(u₁*v₁) := by
+          unfold pm_ε; ring_nf; rw [ε_sq_1, sign_sq_1, E.a_square]; ring
+        _                     = E.d*((u₁*v₁)^2*(E.√ā*u₂ + pm_v₂)^2) := by
+          rw [← h1]; unfold pm_ε; unfold ε; unfold pm_v₂; ring_nf; rw [sign_sq_1, E.a_square]; ring
 
-    have sign_p1  : (1 : F)^2 = 1 := by ring
-    have plus_v₂  : E.sqrt_a*u₂ + (1 : F)*v₂ = 0 := by apply signed_arg (1 : F) sign_p1
+      have d_calc : ((u₁*v₁)*(E.√ā*u₂ + pm_v₂))^2 = 0 ∨
+                      E.d = (E.√ā*u₁ + pm_ε*v₁)^2 / ((u₁*v₁)*(E.√ā*u₂ + pm_v₂))^2 := by
+        rw [mul_pow_comm_conv] at h2; exactly div_nz at h2
+
+      have d_contra : E.d ≠ (E.√ā*u₁ + pm_ε*v₁)^2 / ((u₁*v₁)*(E.√ā*u₂ + pm_v₂))^2 := by
+        by_contra d_square
+        have d_sq :   E.d = ((E.√ā*u₁ + pm_ε*v₁) / ((u₁*v₁)*(E.√ā*u₂ + pm_v₂)))^2 := by
+          rw [← div_pow_comm] at d_square; exact d_square
+        apply E.d_nonsquare; exactly detect_square at d_sq
+
+      simp_all only [d_calc]; simp at d_calc; simp_all only [false_or, pm_v₂]
+
+    have sign_p1 : (1 : F)^2 = 1 := by ring
+    have plus_v₂ : E.√ā*u₂ + (1 : F)*v₂ = 0 := by apply signed_arg (1 : F) sign_p1
     simp at plus_v₂
 
-    have sign_m1  : (-1 : F)^2 = 1 := by ring
-    have minus_v₂ : E.sqrt_a*u₂ + (-1 : F)*v₂ = 0 := by apply signed_arg (-1 : F) sign_m1
+    have sign_m1 : (-1 : F)^2 = 1 := by ring
+    have minus_v₂ : E.√ā*u₂ + (-1 : F)*v₂ = 0 := by apply signed_arg (-1 : F) sign_m1
     simp at minus_v₂
 
-    have sqrta_u₂_2_z : E.sqrt_a*(u₂*2) = 0 := by
-      have added    : (E.sqrt_a*u₂ + v₂) + (E.sqrt_a*u₂ + -v₂) = 0 + 0 := by
+    have sqrta_u₂_2_z : E.√ā*(u₂*2) = 0 := by
+      have added : (E.√ā*u₂ + v₂) + (E.√ā*u₂ + -v₂) = 0 + 0 := by
         apply add_field_eqns
         . exact plus_v₂
         . exact minus_v₂
       ring_nf at added; ring_nf; exact added
-    have sqrta_or_u₂_2_z : E.sqrt_a = 0 ∨ u₂*2 = 0 := by simp_all only [Iff.mp mul_eq_zero, false_or]
-    have sqrta_nz : E.sqrt_a ≠ 0 := by apply ctedwards_sqrt_a_nz
-    have u₂_2_z   : u₂*2 = 0 := by simp_all only [false_or]
-    let  two_nz   := E.F_nonbinary
-    have u₂_z     : u₂ = 0 := by apply Iff.mp mul_eq_zero at u₂_2_z; simp_all only [two_nz]; simp at u₂_2_z
+
+    have sqrta_or_u₂_2_z : E.√ā = 0 ∨ u₂*2 = 0 := by simp_all only [Iff.mp mul_eq_zero, false_or]
+    have sqrta_nz : E.√ā ≠ 0 := by apply ctedwards_sqrt_a_nz
+    have u₂_2_z : u₂*2 = 0 := by simp_all only [false_or]
+    let two_nz := E.F_nonbinary
+    have u₂_z : u₂ = 0 := by apply Iff.mp mul_eq_zero at u₂_2_z; simp_all only [two_nz]; simp at u₂_2_z
     -- similarly we also have v₂ = 0, but we don't need that
     simp_all only [u₂]
 
   unfold ε at ε_sq_n1; exact ε_sq_n1
-
 
 def ctedwards_add (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E) : CtEdwardsPoint F E :=
   let u₁ := P₁.u; let v₁ := P₁.v; let u₂ := P₂.u; let v₂ := P₂.v
@@ -180,8 +185,8 @@ def ctedwards_add (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E) : CtEd
 
   { u := u₃, v := v₃,
     on_curve := by
-      have ε_sq_n1  : ε^2 ≠ 1 := by apply ctedwards_complete F E P₁ P₂
-      have ε_neq    : ε ≠ -1 ∧ ε ≠ 1 := by simp_all only [ne_eq, sq_eq_one_iff, not_or, not_false_eq_true, and_self]
+      have ε_sq_n1 :  ε^2 ≠ 1 := by apply ctedwards_complete F E P₁ P₂
+      have ε_neq :    ε ≠ -1 ∧ ε ≠ 1 := by simp_all only [ne_eq, sq_eq_one_iff, not_or, not_false_eq_true, and_self]
       have u_den_nz : 1 + ε ≠ 0 := by
         by_contra u_den_contra; apply eq_zero_sub_of_add_eq_zero_right at u_den_contra; simp_all only [zero_sub, ε]
       have v_den_nz : 1 - ε ≠ 0 := by
