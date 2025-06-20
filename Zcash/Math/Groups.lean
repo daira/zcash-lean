@@ -1,4 +1,5 @@
 import Mathlib.Algebra.Group.Defs
+import Mathlib.Data.ZMod.Defs
 import Mathlib.Tactic
 
 section
@@ -14,12 +15,12 @@ variable (G : Type) [Group G]
 theorem expand_pow (a : G) (b c : Nat) : a^(b*c) = (a^b)^c := by
   group
 
-theorem odd_order_double_inj (n : Nat) (a b : G) : a^(2*n) = a -> b^(2*n) = b -> a^2 = b^2 -> a = b := by
+theorem odd_order_double_inj (n : Nat) (_n_gt_z : n > 0) (a b : G) : a^(2*n) = a -> b^(2*n) = b -> a^2 = b^2 -> a = b := by
   intro ha hb sq_eq
   rw [expand_pow] at ha
   rw [expand_pow] at hb
   rw [sq_eq] at ha
-  rw [← ha]
+  rw [ha] at hb
   exact hb
 
 end
