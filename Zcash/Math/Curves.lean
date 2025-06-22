@@ -3,6 +3,8 @@ import Mathlib.Algebra.Field.Defs
 import Mathlib.Tactic
 import Zcash.Tactic
 
+import Zcash.Math.Groups
+
 /-
 Theorem A.3.4. Distinct-x theorem.
 
@@ -32,21 +34,19 @@ variable (F : Type)
 /- M is an additive group. -/
 variable (M : Type) [AddGroup M]
 
-/- The order of M, an odd prime s. -/
-variable (s : ℕ) (prime_s : Prime s) (s_gt_2 : s > 2)
+/- The order of M is odd. -/
+variable (s : ℕ)
+variable (n : ℕ) (s_odd : s = 2*n + 1)
 variable (smulwithzero : SMulWithZero (ZMod s) M)
 
 /-- We define the range of non-zero scalars to be symmetric on 0, rather than unsigned. -/
-def nz_symmetric_range : Set ℤ := { k | |k| ≤ (s-1)/2 ∧ k ≠ 0 }
+def nz_symmetric_range : Set ℤ := { k | |k| ≤ n ∧ k ≠ 0 }
 
-/-- If k ∈ nz_symmetric_range s then so is -k. -/
-lemma neg_bij_on_nz_symmetric_range (k : ℤ) (kin : k ∈ nz_symmetric_range s) : -k ∈ nz_symmetric_range s := by
+/-- If k ∈ nz_symmetric_range n then so is -k. -/
+lemma neg_bij_on_nz_symmetric_range (k : ℤ) (kin : k ∈ nz_symmetric_range n) : -k ∈ nz_symmetric_range n := by
   unfold nz_symmetric_range at kin
   unfold nz_symmetric_range
   simp_all only [ne_eq, Set.mem_setOf_eq, abs_neg, neg_eq_zero, not_false_eq_true, and_self]
-
-/-- The set of non-zero points in M. -/
-def nonzero : Set M := { P | P ≠ 0 }
 
 /-- Negating a non-zero point gives a non-zero point. -/
 lemma negnz (P : nonzero M) : -(P:M) ∈ nonzero M := by
@@ -74,11 +74,11 @@ theorem distinct_x_axis_symmetric
     (x_axis_symmetry : (R₁ : nonzero M) → (R₂ : nonzero M) → (proj_x R₁ = proj_x R₂) → ((R₁:M) = R₂ ∨ -(R₁:M) = R₂))
     -- Q is a point of M that we use as a generator.
     (Q : M)
-    -- k : nz_symmetric_range s ↦ k • Q : M is injective. This requires Q to be of order at least s.
-    (nz_symmetric_range_inj : Set.InjOn (fun (k : ℤ) => k • Q) (nz_symmetric_range s))
+    -- k : nz_symmetric_range n ↦ k • Q : M is injective. This requires Q to be of order at least s.
+    (nz_symmetric_range_inj : Set.InjOn (fun (k : ℤ) => k • Q) (nz_symmetric_range n))
     -- k₁ and k₂ are non-zero scalars that span the order of M.
-    (k₁ : nz_symmetric_range s)
-    (k₂ : nz_symmetric_range s)
+    (k₁ : nz_symmetric_range n)
+    (k₂ : nz_symmetric_range n)
     -- k₁ and k₂ are not equal up to sign.
     (k₁_neq_k₂ : (k₁:ℤ) ≠ k₂) (mk₁_neq_k₂ : -(k₁:ℤ) ≠ k₂)
     -- P₁ = k₁ • Q and P₂ = k₂ • Q are non-zero points of M.
@@ -87,11 +87,11 @@ theorem distinct_x_axis_symmetric
   : -- Then we conclude that P₁ and P₂ have distinct projections to the x line.
     proj_x P₁ ≠ proj_x P₂ :=
   by
-    have hk₁ : ↑k₁ ∈ nz_symmetric_range s := by simp_all only [Subtype.coe_prop]
-    have hk₂ : ↑k₂ ∈ nz_symmetric_range s := by simp_all only [Subtype.coe_prop]
+    have hk₁ : ↑k₁ ∈ nz_symmetric_range n := by simp_all only [Subtype.coe_prop]
+    have hk₂ : ↑k₂ ∈ nz_symmetric_range n := by simp_all only [Subtype.coe_prop]
     by_contra contra
     have h1 : (P₁:M) = P₂ ∨ -(P₁:M) = P₂ := by apply x_axis_symmetry; trivial
     have h2 : (k₁:ℤ) • Q = (k₂:ℤ) • Q ∨ (-(k₁:ℤ)) • Q = (k₂:ℤ) • Q := by simp_all only [neg_zsmul]
     cases h2 with
     | inl left => let k₁_eq_k₂ := nz_symmetric_range_inj hk₁ hk₂ left; contradiction
-    | inr right => let mk₁_eq_k₂ := nz_symmetric_range_inj (neg_bij_on_nz_symmetric_range s k₁ hk₁) hk₂ right; contradiction
+    | inr right => let mk₁_eq_k₂ := nz_symmetric_range_inj (neg_bij_on_nz_symmetric_range n k₁ hk₁) hk₂ right; contradiction
