@@ -174,8 +174,7 @@ def mont_add (P₁ P₂ : MontgomeryPoint F M) : MontgomeryPoint F M :=
 /-- Computability aside, `mont_add` is consistent with `WeierstrassCurve.Affine.Point.instAddCommGroup.add`. -/
 lemma mont_add_matches {x₁ y₁ x₂ y₂ : F} (h₁ : M.W.Nonsingular x₁ y₁) (h₂ : M.W.Nonsingular x₂ y₂)
     : (WeierstrassCurve.Affine.Point.some h₁) + (WeierstrassCurve.Affine.Point.some h₂) = mont_add F M (.some h₁) (.some h₂) := by
-  unfold HAdd.hAdd
-  unfold instHAdd
+  unfold HAdd.hAdd instHAdd
   simp_all only [Add.add, WeierstrassCurve.Affine.Point.instAdd, WeierstrassCurve.Affine.Point.add,
                  WeierstrassCurve.Affine.slope, WeierstrassCurve.Affine.negY, WeierstrassCurve.Affine.negAddY,
                  WeierstrassCurve.Affine.addX, WeierstrassCurve.Affine.addY,
@@ -203,14 +202,14 @@ lemma add_def (P Q : MontgomeryPoint F M) : P + Q = mont_add F M P Q :=
 local syntax "unfold_add" : tactic
 macro_rules
 | `(tactic| unfold_add ) =>
-  `(tactic| unfold HAdd.hAdd; unfold instHAdd; simp only; unfold Add.add; unfold inst_mont_add; unfold mont_add; simp only )
+  `(tactic| unfold HAdd.hAdd instHAdd; simp only; unfold Add.add inst_mont_add mont_add; simp only )
 
 /-- a + b = 0 → a = -b. -/
 lemma mont_zero_sum_imp_neg (a b : MontgomeryPoint F M) : (hz : mont_add F M a b = 0) → a = -b := by
   unfold mont_add
   split <;> try rw [mont_zero_def]; simp_all
   rename_i xa ya ha xb yb hb
-  unfold mont_add_some; unfold mont_neg; unfold WeierstrassCurve.Affine.Point.neg
+  unfold mont_add_some mont_neg WeierstrassCurve.Affine.Point.neg
   simp_all
 
 instance mont_group (M : MontgomeryCurve F) : AddCommGroup (MontgomeryPoint F M) where
@@ -224,7 +223,7 @@ instance mont_group (M : MontgomeryCurve F) : AddCommGroup (MontgomeryPoint F M)
     split
     . -- (-P, P) = (0, P)
       rename_i h
-      unfold Neg.neg at h; unfold mont_neg at h; simp only at h; unfold WeierstrassCurve.Affine.Point.neg at h
+      unfold Neg.neg mont_neg at h; simp only at h; unfold WeierstrassCurve.Affine.Point.neg at h
       split at h <;> trivial
     . rfl
     . rename_i x₁ y₁ h₁ x₂ y₂ h₂ hneg -- -P₂ = P₁ nonsingular negation formula

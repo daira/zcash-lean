@@ -136,7 +136,7 @@ lemma ctedwards_complete (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E)
         (E.√ā*u₁ + pm_ε*v₁)^2 = E.a*u₁^2 + v₁^2 + 2*E.√ā*pm_ε*(u₁*v₁) := by
           unfold pm_ε; ring_nf; rw [ε_sq_1, sign_sq_1, E.a_square]; ring
         _                     = E.d*((u₁*v₁)^2*(E.√ā*u₂ + pm_v₂)^2) := by
-          rw [← h1]; unfold pm_ε; unfold ε; unfold pm_v₂; ring_nf; rw [sign_sq_1, E.a_square]; ring
+          rw [← h1]; unfold pm_ε ε pm_v₂; ring_nf; rw [sign_sq_1, E.a_square]; ring
 
       have d_calc : ((u₁*v₁)*(E.√ā*u₂ + pm_v₂))^2 = 0 ∨
                       E.d = (E.√ā*u₁ + pm_ε*v₁)^2 / ((u₁*v₁)*(E.√ā*u₂ + pm_v₂))^2 := by
