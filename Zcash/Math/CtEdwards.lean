@@ -1,7 +1,5 @@
 import Mathlib.Algebra.Group.Defs
 import Mathlib.Algebra.Field.Defs
---import Mathlib.AlgebraicGeometry.EllipticCurve.Weierstrass
---import Mathlib.AlgebraicGeometry.EllipticCurve.Affine
 import Mathlib.Tactic
 import Zcash.Tactic
 
