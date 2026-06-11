@@ -71,10 +71,7 @@ lemma only_zero_squared_is_zero (a : F) (a_sq_zero : a^2 = 0) : a = 0 := by
 
 lemma div_nz (a b d : F) (mult : a = d * b) : b = 0 ∨ d = a / b := by
   by_cases b_nz : b ≠ 0
-  . have goal : d = a / b := by
-      apply eq_div_of_mul_eq
-      . exact b_nz
-      . exact Eq.symm mult
+  . have goal : d = a / b := by exact eq_div_of_mul_eq b_nz mult.symm
     simp_all only [ne_eq, isUnit_iff_ne_zero, not_false_eq_true, IsUnit.div_mul_cancel, or_true]
   . simp_all only [not_not, true_or]
 
@@ -163,13 +160,12 @@ lemma ctedwards_complete (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E)
         apply add_field_eqns
         . exact plus_v₂
         . exact minus_v₂
-      ring_nf at added; ring_nf; exact added
+      ring_nf at ⊢ added; exact added
 
     have sqrta_or_u₂_2_z : E.√ā = 0 ∨ u₂*2 = 0 := by simp_all only [Iff.mp mul_eq_zero, false_or]
     have sqrta_nz : E.√ā ≠ 0 := by apply ctedwards_sqrt_a_nz
     have u₂_2_z : u₂*2 = 0 := by simp_all only [false_or]
-    let two_nz := E.F_nonbinary
-    have u₂_z : u₂ = 0 := by apply Iff.mp mul_eq_zero at u₂_2_z; simp_all only [two_nz]; simp at u₂_2_z
+    have u₂_z : u₂ = 0 := by apply Iff.mp mul_eq_zero at u₂_2_z; simp_all only [E.F_nonbinary]; simp at u₂_2_z
     -- similarly we also have v₂ = 0, but we don't need that
     simp_all only [u₂]
 
@@ -198,11 +194,11 @@ def ctedwards_add (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E) : CtEd
 instance (E : CtEdwardsCurve F) : Add (CtEdwardsPoint F E) where
   add P₁ P₂ := ctedwards_add F E P₁ P₂
 
-theorem ctedwards_add_commutative (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E) :
-    ctedwards_add F E P₁ P₂ = ctedwards_add F E P₂ P₁ := by
+theorem ctedwards_add_commutative (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E)
+    : ctedwards_add F E P₁ P₂ = ctedwards_add F E P₂ P₁ := by
   rw [ctedwards_add, ctedwards_add]
   ac_nf
 
-theorem ctedwards_add_op_commutative (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E) :
-    P₁ + P₂ = P₂ + P₁ := by
+theorem ctedwards_add_op_commutative (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E)
+    : P₁ + P₂ = P₂ + P₁ := by
   apply ctedwards_add_commutative
