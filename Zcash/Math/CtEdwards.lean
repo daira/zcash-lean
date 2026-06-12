@@ -145,7 +145,7 @@ lemma ctedwards_complete (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E)
           rw [← div_pow_comm] at d_square; exact d_square
         apply E.d_nonsquare; exactly detect_square at d_sq
 
-      simp_all only [d_calc]; simp at d_calc; simp_all only [false_or, pm_v₂]
+      simp_all only; simp at d_calc; simp_all only [false_or, pm_v₂]
 
     have sign_p1 : (1 : F)^2 = 1 := by ring
     have plus_v₂ : E.√ā*u₂ + (1 : F)*v₂ = 0 := by apply signed_arg (1 : F) sign_p1
@@ -162,7 +162,7 @@ lemma ctedwards_complete (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E)
         . exact minus_v₂
       ring_nf at ⊢ added; exact added
 
-    have sqrta_or_u₂_2_z : E.√ā = 0 ∨ u₂*2 = 0 := by simp_all only [Iff.mp mul_eq_zero, false_or]
+    have sqrta_or_u₂_2_z : E.√ā = 0 ∨ u₂*2 = 0 := by simp_all only [Iff.mp mul_eq_zero]
     have sqrta_nz : E.√ā ≠ 0 := by apply ctedwards_sqrt_a_nz
     have u₂_2_z : u₂*2 = 0 := by simp_all only [false_or]
     have u₂_z : u₂ = 0 := by apply Iff.mp mul_eq_zero at u₂_2_z; simp_all only [E.F_nonbinary]; simp at u₂_2_z
@@ -177,19 +177,31 @@ def ctedwards_add (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E) : CtEd
   let u₃ := (u₁*v₂ + v₁*u₂) / (1 + ε)
   let v₃ := (v₁*v₂ - E.a*u₁*u₂) / (1 - ε)
 
-  { u := u₃, v := v₃,
-    on_curve := by
-      have ε_sq_n1 :  ε^2 ≠ 1 := by apply ctedwards_complete F E P₁ P₂
-      have ε_neq :    ε ≠ -1 ∧ ε ≠ 1 := by simp_all only [ne_eq, sq_eq_one_iff, not_or, not_false_eq_true, and_self]
-      have u_den_nz : 1 + ε ≠ 0 := by
-        by_contra u_den_contra; apply eq_zero_sub_of_add_eq_zero_right at u_den_contra; simp_all only [zero_sub, ε]
-      have v_den_nz : 1 - ε ≠ 0 := by
-        by_contra v_den_contra; apply eq_of_sub_eq_zero at v_den_contra; simp_all only [ne_eq, not_true_eq_false]
+  have ε_sq_n1 :  ε^2 ≠ 1 := by apply ctedwards_complete F E P₁ P₂
+  have ε_neq :    ε ≠ -1 ∧ ε ≠ 1 := by simp_all only [ne_eq, sq_eq_one_iff, not_or, not_false_eq_true, and_self]
+  have u_den_nz : 1 + ε ≠ 0 := by
+    by_contra u_den_contra; apply eq_zero_sub_of_add_eq_zero_right at u_den_contra; simp_all only [zero_sub, ε]
+  have v_den_nz : 1 - ε ≠ 0 := by
+    by_contra v_den_contra; apply eq_of_sub_eq_zero at v_den_contra; simp_all only [ne_eq, not_true_eq_false]
+  have hε : ε = E.d*u₁*u₂*v₁*v₂ := by show E.d*(u₂*(v₂*(u₁*v₁))) = E.d*u₁*u₂*v₁*v₂; ring
 
-      let curve₁ : ctedwards_on_curve F E.a E.d u₁ v₁ := P₁.on_curve
-      let curve₂ : ctedwards_on_curve F E.a E.d u₂ v₂ := P₂.on_curve
-      sorry
-  }
+  have c1 : E.a*u₁^2 + v₁^2 = 1 + E.d*u₁^2*v₁^2 := P₁.on_curve
+  have c2 : E.a*u₂^2 + v₂^2 = 1 + E.d*u₂^2*v₂^2 := P₂.on_curve
+  have c3 : ctedwards_on_curve F E.a E.d u₃ v₃ := by
+    unfold ctedwards_on_curve
+    show    E.a*((u₁*v₂ + v₁*u₂) / (1 + ε))^2 + ((v₁*v₂ - E.a*u₁*u₂) / (1 - ε))^2
+      = 1 + E.d*((u₁*v₂ + v₁*u₂) / (1 + ε))^2 * ((v₁*v₂ - E.a*u₁*u₂) / (1 - ε))^2
+    field_simp
+    linear_combination
+      c1 * (E.a^2*u₂^4 - E.a*E.d*u₁^2*u₂^2*v₂^2 - E.a*E.d*u₂^4*v₂^2 + 2*E.a*u₂^2*v₂^2
+              + E.d*ε^2*u₂^2*v₂^2 - E.d*u₂^2*v₁^2*v₂^2 - E.d*u₂^2*v₂^4 - E.d*u₂^2*v₂^2 + v₂^4)
+      + c2*(-E.a^2*u₁^2*u₂^2 + E.a*ε^2*u₁^2 - E.a*u₁^2*v₂^2 - E.a*u₂^2*v₁^2 + E.a*u₂^2
+              + ε^2*v₁^2 - ε^2 - v₁^2*v₂^2 + v₂^2 + 1)
+      + hε*(2*E.a^2*u₁^2*u₂^2 + E.a*E.d*u₁^3*u₂*v₁*v₂ + E.a*E.d*u₁*u₂^3*v₁*v₂ + E.a*ε*u₁^2 + E.a*ε*u₂^2
+              - 2*E.a*u₁^2*v₂^2 - 8*E.a*u₁*u₂*v₁*v₂ - 2*E.a*u₂^2*v₁^2 - E.d*ε^2*u₁*u₂*v₁*v₂ + E.d*u₁*u₂*v₁^3*v₂
+              + E.d*u₁*u₂*v₁*v₂^3 + E.d*u₁*u₂*v₁*v₂ - ε^3 + ε*v₁^2 + ε*v₂^2 + ε + 2*v₁^2*v₂^2)
+
+  { u := u₃, v := v₃, on_curve := c3 }
 
 instance (E : CtEdwardsCurve F) : Add (CtEdwardsPoint F E) where
   add P₁ P₂ := ctedwards_add F E P₁ P₂
