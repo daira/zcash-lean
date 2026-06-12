@@ -41,8 +41,10 @@ binding hypothesis. Instead we phrase binding as a **reduction**:
 * **Discrete-log-relation hardness** — discharges the reduction above to actual balance; lives in
   the computational/AGM layer (not yet built).
 * **Lifting `A = 0` in `F = ZMod r` to integer balance** (`∑ v_in = ∑ v_out + v_balance` over ℤ) —
-  the range / no-overflow argument (`intBalance_eq_zero_of_lt`, valid when `MAX_MONEY · maxActions <
-  r`); wiring it to the homomorphic-sum layer is the remaining piece.
+  the range / no-overflow argument (`intBalance_eq_zero_of_lt`, valid when `|vSum| < r`, which the
+  spec's §4.13 / §4.14 range argument establishes from the 64-bit value/balance types and the bound
+  on the spend/output/action count — see `§ Integer balance` below); wiring it to the homomorphic-sum
+  layer is the remaining piece.
 -/
 
 namespace Zcash.Security.BindingSignature
@@ -120,10 +122,41 @@ theorem value_coeff_zero (V R bvk : M) (A B bsk : F)
 
 `value_coeff_zero` (and the group-faithful reduction) conclude `A = 0` in `F = ZMod r` — balance
 *modulo the scalar-field order*. Genuine balance is the integer equation
-`∑ v_in − ∑ v_out − v_balance = 0`. The two coincide because note values and `v_balance` are bounded,
-so the integer balance cannot wrap mod `r`: with note values in `[0, MAX_MONEY]` and at most
-`maxActions` of them, the integer balance `N` has `N.natAbs < r` whenever `MAX_MONEY · maxActions < r`
-— comfortably true for Pasta (`r ≈ 2^254`, `MAX_MONEY ≈ 2^51`). The lift is then pure arithmetic. -/
+`∑ v_in − ∑ v_out − v_balance = 0`. The two coincide exactly as in the spec's argument (§4.13 / §4.14,
+the paragraph beginning "The preceding argument shows only that `vSum = 0 (mod r)`; … we will also
+demonstrate that it does not overflow `ValueCommitType`"): the net value `vSum` cannot wrap mod `r`,
+because each note value is range-proven and the spend/output/action count is bounded, so
+`vSum ∈ ValueCommitType = [−(r−1)/2, (r−1)/2] ⊂ (−r, r)` and `vSum = 0 (mod r)` forces `vSum = 0` over ℤ.
+The argument deliberately uses the *value-type* range — **not** `MAX_MONEY`; it works for any
+signed-64-bit `valueBalance`, which is all the encoding constrains.
+
+The precise bounds differ between the pools, and turn on note values being *unsigned* 64-bit while
+value balances are *signed* 64-bit:
+
+* **Sapling (§4.13).** The Spend statements prove each spend value `v_old_i ∈ ValueType = {0 .. 2^64 − 1}`
+  and the Output statements prove each output value `v_new_j ∈ ValueType`; `vBalance` is a signed
+  two's-complement 64-bit integer in `SignedValueFieldType = [−2^63, 2^63 − 1]`. With
+  `vSum = ∑ v_old_i − ∑ v_new_j − vBalance` this gives `vSum ∈ [−m · (2^64 − 1) − 2^63 + 1, n · (2^64 − 1) + 2^63]`.
+  The action count is bounded *indirectly*, via the 2 MB transaction-size limit against the minimum
+  per-description sizes (a v5 spend ≥ 352 bytes, an output ≥ 948 bytes): `n ≤ ⌊2000000/352⌋ = 5681`
+  spends and `m ≤ ⌊2000000/948⌋ = 2109` outputs.
+
+* **Orchard (§4.14).** Each action performs *both* a spend and an output, committing to the *net*
+  value `v_net_i = v_spend − v_output` — a difference of two unsigned 64-bit note values, hence
+  range-proven (by the Action statement) to lie in `SignedValueDifferenceType = [−2^64 + 1, 2^64 − 1]`
+  (signed, unlike Sapling's unsigned per-note `ValueType`). With `vSum = ∑ v_net_i − vBalance` and the
+  same signed-64-bit `vBalance` this gives `vSum ∈ [−n · (2^64 − 1) − 2^63 + 1, n · (2^64 − 1) + 2^63]`
+  — a *single* `n`, since each action contributes one net term. Here the action count is bounded
+  *directly* by a dedicated consensus rule `n ≤ 2^16 − 1`, independent of the block size — more elegant
+  than Sapling's size-derived bound. (The spec notes this rule is technically redundant given the 2 MB
+  transaction-size limit, but it suffices on its own.)
+
+Either way `vSum ∈ ValueCommitType ⊂ (−r, r)`.
+
+**Caveat — this range argument is not yet formalized, only described here.** `intBalance_eq_zero_of_lt`
+*assumes* `N.natAbs < r`; discharging that from the per-note / per-action 64-bit range bounds (proven by
+the Spend/Output/Action statements) and the action-count bound, at the concrete `r`, is a remaining
+piece. Given the bound, the lift itself is pure arithmetic. -/
 
 /-- No-overflow lift: an integer reducing to `0` mod `r` whose magnitude is `< r` is `0`. This turns
 balance modulo the scalar-field order (`A = 0` in `ZMod r`) into integer balance, given the value
@@ -199,9 +232,12 @@ theorem bundle_mod_balances (V R : M) (spends outputs : List (F × F)) (vBalance
 
 /-- **Integer value balance** — the second stage of the spec §4.13 / §4.14 argument. Stage 1
 (`bundle_mod_balances`) gives `A = 0` in `ZMod r`, i.e. balance *modulo the scalar-field order*. When
-that `A` is the reduction of an integer net value `N` that cannot wrap (`|N| < r`, guaranteed by
-`MAX_MONEY · maxActions < r`), the range / no-overflow lift `intBalance_eq_zero_of_lt` upgrades it to
-`N = 0` over ℤ — genuine integer value balance. -/
+that `A` is the reduction of an integer net value `N = vSum` that cannot wrap (`|N| < r`), the range /
+no-overflow lift `intBalance_eq_zero_of_lt` upgrades it to `N = 0` over ℤ — genuine integer value
+balance. The bound `|N| < r` is the `hbound` hypothesis here; what justifies it is the spec's range
+argument (`§ Integer balance` above) — the unsigned-64-bit note values / signed-64-bit `valueBalance`
+together with the spend/output/action-count bound put `vSum ∈ ValueCommitType ⊂ (−r, r)` — but that
+derivation is itself not yet formalized. -/
 theorem bundle_integer_balances {r : ℕ} [Fact (Nat.Prime r)]
     {M : Type*} [AddCommGroup M] [Module (ZMod r) M]
     (V R : M) (spends outputs : List (ZMod r × ZMod r)) (vBalance bsk : ZMod r) (N : ℤ)
