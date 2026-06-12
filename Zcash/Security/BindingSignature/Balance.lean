@@ -40,11 +40,13 @@ binding hypothesis. Instead we phrase binding as a **reduction**:
   proved (its proof needs a random oracle + forking); supplied as the `hExtract` hypothesis.
 * **Discrete-log-relation hardness** — discharges the reduction above to actual balance; lives in
   the computational/AGM layer (not yet built).
-* **Lifting `A = 0` in `F = ZMod r` to integer balance** (`∑ v_in = ∑ v_out + v_balance` over ℤ) —
-  the range / no-overflow argument (`intBalance_eq_zero_of_lt`, valid when `|vSum| < r`, which the
-  spec's §4.13 / §4.14 range argument establishes from the 64-bit value/balance types and the bound
-  on the spend/output/action count — see `§ Integer balance` below); wiring it to the homomorphic-sum
-  layer is the remaining piece.
+* **Lifting `A = 0` in `F = ZMod r` to integer balance** (`∑ v_in = ∑ v_out + v_balance` over ℤ) — the
+  range / no-overflow lift `intBalance_eq_zero_of_lt`, valid when `|vSum| < r`. That bound follows from
+  the 64-bit value/balance types and the spend/output/action-count bound; the per-pool lemmas
+  `orchard_natAbs_lt` / `sapling_natAbs_lt` (modules `Orchard` / `Sapling`) establish it (see also
+  `§ Integer balance` below). The open step is the plumbing: wiring those lemmas, and the
+  integer→scalar-field cast `hcast`, into `bundle_integer_balances` so the value-type hypotheses are
+  consumed end-to-end.
 -/
 
 namespace Zcash.Security.BindingSignature
@@ -138,8 +140,9 @@ value balances are *signed* 64-bit:
   two's-complement 64-bit integer in `SignedValueFieldType = [−2^63, 2^63 − 1]`. With
   `vSum = ∑ v_old_i − ∑ v_new_j − vBalance` this gives `vSum ∈ [−m · (2^64 − 1) − 2^63 + 1, n · (2^64 − 1) + 2^63]`.
   The action count is bounded *indirectly*, via the 2 MB transaction-size limit against the minimum
-  per-description sizes (a v5 spend ≥ 352 bytes, an output ≥ 948 bytes): `n ≤ ⌊2000000/352⌋ = 5681`
-  spends and `m ≤ ⌊2000000/948⌋ = 2109` outputs.
+  per-description sizes — a spend is ≥ 384 bytes (v4) or ≥ 352 bytes (v5, where the per-spend `anchor`
+  becomes transaction-wide), an output ≥ 948 bytes — giving `n ≤ ⌊2000000/384⌋ = 5208` (v4) or
+  `⌊2000000/352⌋ = 5681` (v5) spends and `m ≤ ⌊2000000/948⌋ = 2109` outputs.
 
 * **Orchard (§4.14).** Each action performs *both* a spend and an output, committing to the *net*
   value `v_net_i = v_spend − v_output` — a difference of two unsigned 64-bit note values, hence
@@ -153,10 +156,11 @@ value balances are *signed* 64-bit:
 
 Either way `vSum ∈ ValueCommitType ⊂ (−r, r)`.
 
-**Caveat — this range argument is not yet formalized, only described here.** `intBalance_eq_zero_of_lt`
-*assumes* `N.natAbs < r`; discharging that from the per-note / per-action 64-bit range bounds (proven by
-the Spend/Output/Action statements) and the action-count bound, at the concrete `r`, is a remaining
-piece. Given the bound, the lift itself is pure arithmetic. -/
+The per-pool lemmas `orchard_natAbs_lt` and `sapling_natAbs_lt` (with `_v4` / `_v5` corollaries) in the
+`Orchard` / `Sapling` modules derive `N.natAbs < r` from the per-note / per-action 64-bit range proofs
+(hypotheses standing in for the Spend/Output/Action statements' Halo2 range proofs), the
+field-size-derived action-count bounds, and the field order — producing the `hbound` consumed by
+`bundle_integer_balances`. -/
 
 /-- No-overflow lift: an integer reducing to `0` mod `r` whose magnitude is `< r` is `0`. This turns
 balance modulo the scalar-field order (`A = 0` in `ZMod r`) into integer balance, given the value
@@ -235,9 +239,10 @@ theorem bundle_mod_balances (V R : M) (spends outputs : List (F × F)) (vBalance
 that `A` is the reduction of an integer net value `N = vSum` that cannot wrap (`|N| < r`), the range /
 no-overflow lift `intBalance_eq_zero_of_lt` upgrades it to `N = 0` over ℤ — genuine integer value
 balance. The bound `|N| < r` is the `hbound` hypothesis here; what justifies it is the spec's range
-argument (`§ Integer balance` above) — the unsigned-64-bit note values / signed-64-bit `valueBalance`
-together with the spend/output/action-count bound put `vSum ∈ ValueCommitType ⊂ (−r, r)` — but that
-derivation is itself not yet formalized. -/
+argument — the unsigned-64-bit note values / signed-64-bit `valueBalance` together with the
+spend/output/action-count bound put `vSum ∈ ValueCommitType ⊂ (−r, r)`. The per-pool lemmas
+`orchard_natAbs_lt` / `sapling_natAbs_lt` (modules `…BindingSignature.Orchard` / `.Sapling`) establish
+this bound from the value-type range proofs, producing the `hbound` consumed here. -/
 theorem bundle_integer_balances {r : ℕ} [Fact (Nat.Prime r)]
     {M : Type*} [AddCommGroup M] [Module (ZMod r) M]
     (V R : M) (spends outputs : List (ZMod r × ZMod r)) (vBalance bsk : ZMod r) (N : ℤ)
@@ -250,5 +255,40 @@ theorem bundle_integer_balances {r : ℕ} [Fact (Nat.Prime r)]
   refine intBalance_eq_zero_of_lt N ?_ hbound
   rw [← hcast]
   exact bundle_mod_balances V R spends outputs vBalance bsk hbind hExtract
+
+/-! ### Generic integer-range helpers for the no-overflow lift
+
+These discharge the `hbound`/`hlt` hypothesis of the lifts above from value-type range bounds. The
+Orchard- and Sapling-specific instances — the concrete byte / action-count bounds, the `vSum` range
+constants, and the field orders — live in `Zcash.Security.BindingSignature.Orchard` and `.Sapling`. -/
+
+/-- Triangle bound for a list sum: if every element has `|x| ≤ M`, the sum has `|∑| ≤ length · M`. -/
+theorem abs_listSum_le {l : List ℤ} {M : ℤ} (h : ∀ x ∈ l, |x| ≤ M) :
+    |l.sum| ≤ (l.length : ℤ) * M := by
+  induction l with
+  | nil => simp
+  | cons a t ih =>
+    have ha : |a| ≤ M := h a List.mem_cons_self
+    have ht : |t.sum| ≤ (t.length : ℤ) * M := ih fun x hx => h x (List.mem_cons_of_mem a hx)
+    calc |(a :: t).sum| = |a + t.sum| := by rw [List.sum_cons]
+      _ ≤ |a| + |t.sum| := abs_add_le a t.sum
+      _ ≤ M + (t.length : ℤ) * M := add_le_add ha ht
+      _ = ((a :: t).length : ℤ) * M := by rw [List.length_cons]; push_cast; ring
+
+/-- From a magnitude bound `|N| ≤ B` and the field-order gap `B < r`, the residue `N.natAbs < r`
+(symmetric form — used by Orchard, whose net values are signed). -/
+theorem natAbs_lt_of_abs_le {r : ℕ} {N B : ℤ} (hN : |N| ≤ B) (hr : B < (r : ℤ)) :
+    N.natAbs < r := by
+  have h : (N.natAbs : ℤ) < (r : ℤ) := by rw [← Int.abs_eq_natAbs]; exact lt_of_le_of_lt hN hr
+  exact_mod_cast h
+
+/-- Two-sided form for an *asymmetric* range `lo ≤ N ≤ hi` with both endpoints in `(−r, r)` — used by
+Sapling, whose unsigned note values give an asymmetric `vSum` range. -/
+theorem natAbs_lt_of_bounds {r : ℕ} {N lo hi : ℤ}
+    (hlo : lo ≤ N) (hhi : N ≤ hi) (hrlo : -(r : ℤ) < lo) (hrhi : hi < (r : ℤ)) :
+    N.natAbs < r := by
+  have h : |N| < (r : ℤ) := abs_lt.mpr ⟨lt_of_lt_of_le hrlo hlo, lt_of_le_of_lt hhi hrhi⟩
+  rw [Int.abs_eq_natAbs] at h
+  exact_mod_cast h
 
 end Zcash.Security.BindingSignature
