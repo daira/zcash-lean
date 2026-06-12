@@ -56,7 +56,7 @@ lemma negnz (P : nonzero M) : -(P:M) ∈ nonzero M := by
     apply P_nz
     have mmP_eq_mz : -(-P) = -0 := by simp_all only
     have P_eq_mz : P = -0 := by group at mmP_eq_mz; exact mmP_eq_mz
-    simp_all only [neg_zero, add_eq_left]
+    simp_all only [neg_zero]
   exact mP_nz
 
 /-
