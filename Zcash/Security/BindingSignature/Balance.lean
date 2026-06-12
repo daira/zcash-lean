@@ -234,27 +234,43 @@ theorem bundle_mod_balances (V R : M) (spends outputs : List (F × F)) (vBalance
   value_coeff_zero V R (bindingVK V R spends outputs vBalance) _ _ bsk hbind hExtract
     (bindingVK_decomp V R spends outputs vBalance)
 
-/-- **Integer value balance** — the second stage of the spec §4.13 / §4.14 argument. Stage 1
-(`bundle_mod_balances`) gives `A = 0` in `ZMod r`, i.e. balance *modulo the scalar-field order*. When
-that `A` is the reduction of an integer net value `N = vSum` that cannot wrap (`|N| < r`), the range /
-no-overflow lift `intBalance_eq_zero_of_lt` upgrades it to `N = 0` over ℤ — genuine integer value
-balance. The bound `|N| < r` is the `hbound` hypothesis here; what justifies it is the spec's range
-argument — the unsigned-64-bit note values / signed-64-bit `valueBalance` together with the
-spend/output/action-count bound put `vSum ∈ ValueCommitType ⊂ (−r, r)`. The per-pool lemmas
-`orchard_natAbs_lt` / `sapling_natAbs_lt` (modules `…BindingSignature.Orchard` / `.Sapling`) establish
-this bound from the value-type range proofs, producing the `hbound` consumed here. -/
+/-- Cast an integer-valued bundle (integer note / net values, field randomness) to a field-valued one,
+sending each value `v : ℤ` to its image `(v : ZMod r)` in the value commitment. -/
+def castBundle {r : ℕ} (l : List (ℤ × ZMod r)) : List (ZMod r × ZMod r) :=
+  l.map fun p => ((p.1 : ZMod r), p.2)
+
+/-- The value-sum of a cast bundle is the `ZMod r` image of the integer value-sum, because `Int.cast`
+is additive. This is what lets the integer↔field cast be *derived* rather than assumed. -/
+theorem castBundle_fst_sum {r : ℕ} (l : List (ℤ × ZMod r)) :
+    ((castBundle l).map Prod.fst).sum = (((l.map Prod.fst).sum : ℤ) : ZMod r) := by
+  induction l with
+  | nil => simp [castBundle]
+  | cons a t ih =>
+    simp only [castBundle, List.map_cons, List.sum_cons, Int.cast_add] at ih ⊢
+    rw [ih]
+
+/-- **Integer value balance** — stage 2 of the spec §4.13 / §4.14 argument, over a bundle whose values
+are the actual integer note / net values (`ℤ`), with field randomness. Stage 1 (`bundle_mod_balances`,
+on the cast bundle) gives balance *modulo the scalar-field order*; the no-overflow lift
+`intBalance_eq_zero_of_lt` upgrades it to integer balance `∑ v_in − ∑ v_out − vBalance = 0` over ℤ. The
+integer→field cast is **derived** (`castBundle_fst_sum`), so there is no `hcast` hypothesis: the only
+added input is the no-overflow bound `hbound`, supplied per-pool by `orchard_natAbs_lt` /
+`sapling_natAbs_lt` (modules `…BindingSignature.Orchard` / `.Sapling`) from the value-type range
+proofs. -/
 theorem bundle_integer_balances {r : ℕ} [Fact (Nat.Prime r)]
     {M : Type*} [AddCommGroup M] [Module (ZMod r) M]
-    (V R : M) (spends outputs : List (ZMod r × ZMod r)) (vBalance bsk : ZMod r) (N : ℤ)
-    (hcast : (spends.map Prod.fst).sum - (outputs.map Prod.fst).sum - vBalance = (N : ZMod r))
-    (hbound : N.natAbs < r)
+    (V R : M) (spends outputs : List (ℤ × ZMod r)) (vBalance : ℤ) (bsk : ZMod r)
+    (hbound : ((spends.map Prod.fst).sum - (outputs.map Prod.fst).sum - vBalance).natAbs < r)
     (hbind : Binding (F := ZMod r) V R)
-    (hExtract : bindingVK V R spends outputs vBalance = bsk • R) :
-    N = 0 := by
+    (hExtract : bindingVK V R (castBundle spends) (castBundle outputs) (vBalance : ZMod r) = bsk • R) :
+    (spends.map Prod.fst).sum - (outputs.map Prod.fst).sum - vBalance = 0 := by
   haveI : NeZero r := ⟨(Fact.out : Nat.Prime r).pos.ne'⟩
-  refine intBalance_eq_zero_of_lt N ?_ hbound
-  rw [← hcast]
-  exact bundle_mod_balances V R spends outputs vBalance bsk hbind hExtract
+  refine intBalance_eq_zero_of_lt _ ?_ hbound
+  have hmod := bundle_mod_balances V R (castBundle spends) (castBundle outputs) (vBalance : ZMod r)
+    bsk hbind hExtract
+  rw [castBundle_fst_sum, castBundle_fst_sum] at hmod
+  rw [Int.cast_sub, Int.cast_sub]
+  exact hmod
 
 /-! ### Generic integer-range helpers for the no-overflow lift
 
