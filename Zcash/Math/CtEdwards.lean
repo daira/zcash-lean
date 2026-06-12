@@ -60,7 +60,7 @@ lemma div_pow_comm (a b : F) : (a / b)^2 = a^2 / b^2 := by field_simp
 
 lemma mul_pow_comm_conv (a b : F) : a^2 * b^2 = (a * b)^2 := by ring_nf
 
-lemma nz_squared_is_nz (a : F) (a_nz : a ≠ 0) : a^2 ≠ 0 := by field_simp
+lemma nz_squared_is_nz (a : F) (a_nz : a ≠ 0) : a^2 ≠ 0 := pow_ne_zero 2 a_nz
 
 lemma only_zero_squared_is_zero (a : F) (a_sq_zero : a^2 = 0) : a = 0 := by
   rw [sq] at a_sq_zero
@@ -118,7 +118,7 @@ lemma ctedwards_complete (E : CtEdwardsCurve F) (P₁ P₂ : CtEdwardsPoint F E)
 
   have ε_sq_n1 : ε^2 ≠ 1 := by
     by_contra ε_sq_1
-    have ε_sq_nz : ε^2 ≠ 0 := by simp_all only [zero_ne_one]; field_simp
+    have ε_sq_nz : ε^2 ≠ 0 := by rw [ε_sq_1]; exact one_ne_zero
     have ε_nz : ε ≠ 0 := by exactly only_nz_squared_is_nz at ε_sq_nz
     repeat (rw [mul_ne_zero_iff] at ε_nz)
 
