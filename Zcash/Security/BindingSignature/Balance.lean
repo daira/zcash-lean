@@ -40,8 +40,9 @@ binding hypothesis. Instead we phrase binding as a **reduction**:
   proved (its proof needs a random oracle + forking); supplied as the `hExtract` hypothesis.
 * **Discrete-log-relation hardness** — discharges the reduction above to actual balance; lives in
   the computational/AGM layer (not yet built).
-* **Lifting `A = 0` in `F = ZMod r` to integer balance** (`∑ v_in = ∑ v_out + v_balance` over ℤ)
-  via a range / no-overflow argument (`MAX_MONEY · maxActions < r / 2`) — not yet done.
+* **Lifting `A = 0` in `F = ZMod r` to integer balance** (`∑ v_in = ∑ v_out + v_balance` over ℤ) —
+  the range / no-overflow argument (`intBalance_eq_zero_of_lt`, valid when `MAX_MONEY · maxActions <
+  r`); wiring it to the homomorphic-sum layer is the remaining piece.
 -/
 
 namespace Zcash.Security.BindingSignature
@@ -114,5 +115,36 @@ theorem value_coeff_zero (V R bvk : M) (A B bsk : F)
     A = 0 :=
   balances_of_binding V R A B bsk hbind
     (smul_value_eq_smul_rand V R bvk A B bsk hExtract hSum)
+
+/-! ### Integer balance: range / no-overflow lift
+
+`value_coeff_zero` (and the group-faithful reduction) conclude `A = 0` in `F = ZMod r` — balance
+*modulo the scalar-field order*. Genuine balance is the integer equation
+`∑ v_in − ∑ v_out − v_balance = 0`. The two coincide because note values and `v_balance` are bounded,
+so the integer balance cannot wrap mod `r`: with note values in `[0, MAX_MONEY]` and at most
+`maxActions` of them, the integer balance `N` has `N.natAbs < r` whenever `MAX_MONEY · maxActions < r`
+— comfortably true for Pasta (`r ≈ 2^254`, `MAX_MONEY ≈ 2^51`). The lift is then pure arithmetic. -/
+
+/-- No-overflow lift: an integer reducing to `0` mod `r` whose magnitude is `< r` is `0`. This turns
+balance modulo the scalar-field order (`A = 0` in `ZMod r`) into integer balance, given the value
+sums cannot wrap. -/
+theorem intBalance_eq_zero_of_lt {r : ℕ} [NeZero r] (N : ℤ)
+    (hmod : (N : ZMod r) = 0) (hlt : N.natAbs < r) : N = 0 := by
+  obtain ⟨k, rfl⟩ := (ZMod.intCast_zmod_eq_zero_iff_dvd N r).mp hmod
+  rcases eq_or_ne k 0 with hk | hk
+  · simp [hk]
+  · have hpos : 0 < k.natAbs := Int.natAbs_pos.mpr hk
+    have habs : ((r : ℤ) * k).natAbs = r * k.natAbs := by simp [Int.natAbs_mul]
+    rw [habs] at hlt
+    have hle : r ≤ r * k.natAbs := by
+      calc r = r * 1 := (Nat.mul_one r).symm
+        _ ≤ r * k.natAbs := Nat.mul_le_mul (le_refl r) hpos
+    omega
+
+/-- The same lift phrased with an integer absolute-value bound `|N| < r`. -/
+theorem intBalance_eq_zero_of_abs_lt {r : ℕ} [NeZero r] (N : ℤ)
+    (hmod : (N : ZMod r) = 0) (hlt : |N| < (r : ℤ)) : N = 0 := by
+  apply intBalance_eq_zero_of_lt N hmod
+  rwa [Int.abs_eq_natAbs, Nat.cast_lt] at hlt
 
 end Zcash.Security.BindingSignature
