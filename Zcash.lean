@@ -5,4 +5,5 @@ import Zcash.Math.Groups
 import Zcash.Math.Curves
 import Zcash.Math.CtEdwards
 import Zcash.Proofs.Relations
+import Zcash.Security
 import Zcash.Tactic
