@@ -147,4 +147,72 @@ theorem intBalance_eq_zero_of_abs_lt {r : ℕ} [NeZero r] (N : ℤ)
   apply intBalance_eq_zero_of_lt N hmod
   rwa [Int.abs_eq_natAbs, Nat.cast_lt] at hlt
 
+/-! ### Deriving the decomposition from a bundle (homomorphic value commitments)
+
+The hypothesis `bvk = A • V + B • R` consumed above is not an assumption: it is *derived* from the
+homomorphic value commitment `cv v rcv = v • V + rcv • R` and the shape of a bundle — lists of
+spend / output `(value, randomness)` pairs together with the declared `vBalance`. -/
+
+/-- The value commitment `cv v rcv = v • V + rcv • R`. -/
+def valueCommit (V R : M) (v rcv : F) : M := v • V + rcv • R
+
+/-- A sum of value commitments decomposes as the value-sum times `V` plus the randomness-sum times
+`R` — the homomorphic property. -/
+theorem sum_valueCommit (V R : M) (l : List (F × F)) :
+    (l.map fun p => valueCommit V R p.1 p.2).sum
+      = (l.map Prod.fst).sum • V + (l.map Prod.snd).sum • R := by
+  induction l with
+  | nil => simp
+  | cons a l ih =>
+    simp only [List.map_cons, List.sum_cons, ih]
+    simp only [valueCommit, add_smul]
+    abel
+
+/-- The binding verification key of a bundle: sum of spend commitments minus sum of output
+commitments minus `vBalance • V`. -/
+def bindingVK (V R : M) (spends outputs : List (F × F)) (vBalance : F) : M :=
+  (spends.map fun p => valueCommit V R p.1 p.2).sum
+    - (outputs.map fun p => valueCommit V R p.1 p.2).sum - vBalance • V
+
+/-- **`hSum`, derived.** The binding verification key decomposes homomorphically as `A • V + B • R`,
+with `A` the net value (`∑ spend values − ∑ output values − vBalance`) and `B` the net randomness
+(`∑ spend randomness − ∑ output randomness`). -/
+theorem bindingVK_decomp (V R : M) (spends outputs : List (F × F)) (vBalance : F) :
+    bindingVK V R spends outputs vBalance
+      = ((spends.map Prod.fst).sum - (outputs.map Prod.fst).sum - vBalance) • V
+        + ((spends.map Prod.snd).sum - (outputs.map Prod.snd).sum) • R := by
+  rw [bindingVK, sum_valueCommit, sum_valueCommit]
+  simp only [sub_smul]
+  abel
+
+/-- Putting it together: for a bundle whose binding signature verifies (RedDSA extractability gives
+`bvk = bsk • R`) and under (idealized) binding, the net value coefficient is zero **in `F`** — i.e.
+balance *modulo the scalar-field order*, with no `hSum` assumption (the decomposition is derived by
+`bindingVK_decomp`). This is **not** integer balance: lifting it to `∑ v_in = ∑ v_out + v_balance`
+over ℤ needs the range / no-overflow step `intBalance_eq_zero_of_lt`, which is not applied here. -/
+theorem bundle_mod_balances (V R : M) (spends outputs : List (F × F)) (vBalance bsk : F)
+    (hbind : Binding (F := F) V R)
+    (hExtract : bindingVK V R spends outputs vBalance = bsk • R) :
+    (spends.map Prod.fst).sum - (outputs.map Prod.fst).sum - vBalance = 0 :=
+  value_coeff_zero V R (bindingVK V R spends outputs vBalance) _ _ bsk hbind hExtract
+    (bindingVK_decomp V R spends outputs vBalance)
+
+/-- **Integer value balance** — the second stage of the spec §4.13 / §4.14 argument. Stage 1
+(`bundle_mod_balances`) gives `A = 0` in `ZMod r`, i.e. balance *modulo the scalar-field order*. When
+that `A` is the reduction of an integer net value `N` that cannot wrap (`|N| < r`, guaranteed by
+`MAX_MONEY · maxActions < r`), the range / no-overflow lift `intBalance_eq_zero_of_lt` upgrades it to
+`N = 0` over ℤ — genuine integer value balance. -/
+theorem bundle_integer_balances {r : ℕ} [Fact (Nat.Prime r)]
+    {M : Type*} [AddCommGroup M] [Module (ZMod r) M]
+    (V R : M) (spends outputs : List (ZMod r × ZMod r)) (vBalance bsk : ZMod r) (N : ℤ)
+    (hcast : (spends.map Prod.fst).sum - (outputs.map Prod.fst).sum - vBalance = (N : ZMod r))
+    (hbound : N.natAbs < r)
+    (hbind : Binding (F := ZMod r) V R)
+    (hExtract : bindingVK V R spends outputs vBalance = bsk • R) :
+    N = 0 := by
+  haveI : NeZero r := ⟨(Fact.out : Nat.Prime r).pos.ne'⟩
+  refine intBalance_eq_zero_of_lt N ?_ hbound
+  rw [← hcast]
+  exact bundle_mod_balances V R spends outputs vBalance bsk hbind hExtract
+
 end Zcash.Security.BindingSignature
