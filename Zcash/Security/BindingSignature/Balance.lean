@@ -12,27 +12,28 @@ value-commitment groups. Here `F` will be instantiated with the scalar field `ZM
 
 Value commitments are `cv v rcv = v • V + rcv • R` for fixed generators `V` (value base) and
 `R` (randomness base). For a bundle, the binding verification key is
-`bvk = (∑ spend cv) − (∑ output cv) − v_balance • V`, which by homomorphicity equals
+`bvk = (∑ spend cv) − (∑ output cv) − v_balance • V`. By the module structure that equals
 `A • V + B • R`, where `A = ∑ v_in − ∑ v_out − v_balance` and `B = ∑ rcv_in − ∑ rcv_out`.
 
 ## How binding is expressed (and why not as "no relation exists")
 
 In a prime-order group, `V` and `R` are *always* discrete-log-related — a nontrivial `(a,b)` with
-`a • V + b • R = 0` exists; you simply cannot *find* it. So the information-theoretic statement
-"the only relation is trivial" is **false** in the group setting and must not be used as the
-binding hypothesis. Instead we phrase binding as a **reduction**:
+`a • V + b • R = 0` exists; you simply cannot find it. So the information-theoretic statement
+"the only relation is trivial" is *false* in the group setting and must not be used as the
+binding hypothesis. Instead we phrase binding as a reduction:
 
-* `§ Group-faithful` below proves, with *no* cryptographic hypothesis, that a non-balancing
+* `§ Binding reduction` below proves, with no cryptographic hypothesis, that a non-balancing
   verifying bundle **exhibits** an explicit nontrivial relation between `V` and `R`
   (`relation_of_imbalance`), equivalently the discrete log `dlog_R V` (`rand_log_of_imbalance`).
-  "The bundle balances" is then the *contrapositive under discrete-log-relation hardness* — a
+
+  "The bundle balances" is then the contrapositive under discrete-log-relation hardness — a
   statement about efficient adversaries, supplied by the algebraic group model or a DLR-hardness
   assumption at the computational layer. This is the shape of the spec's argument: *if you can
   unbalance, you can solve DL.*
 
 * `§ Abstract model` keeps the information-theoretic `Binding` predicate, but only as a sanity
   check over a *general* `F`-module where `V, R` genuinely can be independent (e.g. a rank-≥2 free
-  module). It is **not** the group assumption and is never instantiated at a prime-order group.
+  module).
 
 ## Assumptions / later steps
 
@@ -44,9 +45,7 @@ binding hypothesis. Instead we phrase binding as a **reduction**:
   range / no-overflow lift `intBalance_eq_zero_of_lt`, valid when `|vSum| < r`. That bound follows from
   the 64-bit value/balance types and the spend/output/action-count bound; the per-pool lemmas
   `orchard_natAbs_lt` / `sapling_natAbs_lt` (modules `Orchard` / `Sapling`) establish it (see also
-  `§ Integer balance` below). The open step is the plumbing: wiring those lemmas, and the
-  integer→scalar-field cast `hcast`, into `bundle_integer_balances` so the value-type hypotheses are
-  consumed end-to-end.
+  `§ Integer balance` below).
 -/
 
 namespace Zcash.Security.BindingSignature
@@ -64,13 +63,14 @@ theorem smul_value_eq_smul_rand (V R bvk : M) (A B bsk : F)
   calc A • V = bsk • R - B • R := eq_sub_of_add_eq h
     _ = (bsk - B) • R := (sub_smul bsk B R).symm
 
-/-! ### Group-faithful reduction (no cryptographic hypothesis; true in a prime-order group) -/
+/-! ### Binding reduction -/
 
-/-- **The group-faithful binding reduction.** A non-balancing (`A ≠ 0`) verifying bundle *exhibits*
-an explicit nontrivial discrete-log relation between the value base `V` and the randomness base `R`:
-the coefficients `(A, B − bsk)` are not both zero (indeed `A ≠ 0`) and `A • V + (B − bsk) • R = 0`.
-Such a relation always exists in the group; the content is that imbalance *produces* one — which,
-under discrete-log-relation hardness, cannot happen, so the bundle balances. -/
+/-- A non-balancing (`A ≠ 0`) verifying bundle exhibits an explicit nontrivial discrete-log
+elation between the value base `V` and the randomness base `R`: the coefficients `(A, B − bsk)`
+are not both zero (indeed `A ≠ 0`) and `A • V + (B − bsk) • R = 0`.
+
+Such a relation always exists in the group; the content is that imbalance *produces* one.
+Under discrete-log-relation hardness, that cannot happen, so the bundle balances. -/
 theorem relation_of_imbalance (V R bvk : M) (A B bsk : F)
     (hA : A ≠ 0)
     (hExtract : bvk = bsk • R) (hSum : bvk = A • V + B • R) :
@@ -252,11 +252,11 @@ theorem castBundle_fst_sum {r : ℕ} (l : List (ℤ × ZMod r)) :
 /-- **Integer value balance** — stage 2 of the spec §4.13 / §4.14 argument, over a bundle whose values
 are the actual integer note / net values (`ℤ`), with field randomness. Stage 1 (`bundle_mod_balances`,
 on the cast bundle) gives balance *modulo the scalar-field order*; the no-overflow lift
-`intBalance_eq_zero_of_lt` upgrades it to integer balance `∑ v_in − ∑ v_out − vBalance = 0` over ℤ. The
-integer→field cast is **derived** (`castBundle_fst_sum`), so there is no `hcast` hypothesis: the only
-added input is the no-overflow bound `hbound`, supplied per-pool by `orchard_natAbs_lt` /
-`sapling_natAbs_lt` (modules `…BindingSignature.Orchard` / `.Sapling`) from the value-type range
-proofs. -/
+`intBalance_eq_zero_of_lt` upgrades it to integer balance `∑ v_in − ∑ v_out − vBalance = 0` over ℤ.
+
+The integer→field cast is derived using `castBundle_fst_sum`: the only added input is the no-overflow
+bound `hbound`, supplied per-pool by `orchard_natAbs_lt` / `sapling_natAbs_lt` (modules
+`BindingSignature.{Orchard,Sapling}`) from the value-type range proofs. -/
 theorem bundle_integer_balances {r : ℕ} [Fact (Nat.Prime r)]
     {M : Type*} [AddCommGroup M] [Module (ZMod r) M]
     (V R : M) (spends outputs : List (ℤ × ZMod r)) (vBalance : ℤ) (bsk : ZMod r)
